@@ -416,3 +416,6 @@ while True:
 
     ticks = clock.tick(SETTINGS["record_frame_rate"])
     pygame.display.update()
+
+
+###Hello brooooooo
