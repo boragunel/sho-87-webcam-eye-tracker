@@ -6,6 +6,8 @@ import pandas
 # By itself, reading from the webcam is quite straightforward:
 
 import cv2
+
+from Gaze import COLOURS
 capture = cv2.VideoCapture(0) # names capture variable as the default camera (if multiple cameras, they are referred to as 1,2 or more ...)
 capture.read()                # 'read' method tries to grab frame from camera
 
@@ -128,7 +130,7 @@ class Detector:
 
 from collections import OrderedDict
 from imutils.face_utils import shape_to_np
-
+import numpy as np
 class Detector:
     def __init__(self):
         ...
@@ -155,16 +157,62 @@ class Detector:
                             l_eye_pts[0][0] : l_eye_pts[1][0]]
             r_eye_img = frame[r_eye_center[1] - int(r_eye_width / 2) : r_eye_center[1] + int(r_eye_width / 2),
                             r_eye_pts[1][0] : r_eye_pts[0][0]] 
-                                                                    ###The above allows you to have square images of each eye
+                                                                    ###The above allows you to have square images of each eye (the eye is captured 
+                                                                    ### within a square picture)
                                                                     ###This can be used as eye tracker inputs
+            dY = r_eye_center[1] - l_eye_center[1]
+            dX = r_eye_center[0] - l_eye_center[0]
+            self.head_angle = np.degrees(np.arctan2(dY, dX))
+                                                                    ### Head angle: We can calculate the rotational angle of the head
+                                                                    ### Straightforward if we know the locations of the eye centre
+                                                                    ###the calculation shown above spits out angle via arctan(y/x)
+            ###Head angle can then be used to aling the image. dlib provides function
+            ### for performing the alignment: get_face_chip()
+            ### The code below is to stabilize the above code so should not be known in detail
+            eye_dist = np.sqrt((r_eye_center[0] - l_eye_center[0]) ** 2 + 
+                               (r_eye_center[1] - l_eye_center[1]) ** 2)
+
+            desired_l_eye_pos = (0.35, 0.5)
+            desired_r_eye_posx = 1.0 - desired_l_eye_pos[0]
+            desired_dist = desired_r_eye_posx - desired_l_eye_pos[0]
+            desired_dist *= self.output_size
+            scale = desired_dist / eye_dist
+            eyes_center = (
+                (l_eye_center[0] + r_eye_center[0]) // 2,
+                (l_eye_center[1] + r_eye_center[1]) // 2,
+            )
+            t_x = self.output_size * 0.5
+            t_y = self.output_size * desired_l_eye_pos[1]
+            align_angles = (0, self.head_angle)
+            for angle in align_angles:
+                M = cv2.getRotationMatrix2D(eyes_center, angle, scale)
+                M[0, 2] += t_x - eyes_center[0]
+                M[1, 2] += t_y - eyes_center[1]
+                aligned = cv2.warpAffine(frame, M, (self.output_size, self.output_size), flags=cv2.INTER_CUBIC)
+                if angle == 0:
+                    self.face_img = aligned
+                else:
+                    self.face_align_img = aligned
+            
+
+            ### For the head position input, we create a white image with a black box indicating#
+            ### the size and location of the head.
+            ##  code below shows how to do it:
+                frame_bw = np.ones((frame.shape[0], frame.shape[1])) * 255
+                cv2.rectangle(
+                    frame_bw,
+                    (dets[0].rect.left(), dets[0].rect.top()),
+                    (dets[0].rect.right(), dets[0].rect.bottom()),
+                    COLOURS["black"],
+                    -1,
+                ) 
 
 
-##We can calculate the eye width as the distance between the eye corners, and use that width as the 
-# resulting image height to keep the image square:
 
 
-## The above allows you to have square images of each eye 
-# that can be used as eye tracker inputs
+
+
+
 
 
 
