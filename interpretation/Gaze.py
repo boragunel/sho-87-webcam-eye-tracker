@@ -10,9 +10,13 @@ import numpy as np
 from collections import OrderedDict
 from torchvision import transforms
 from utils import get_config
+from utils import shape_to_np
+
 
 # Read config.ini file
 SETTINGS, COLOURS, EYETRACKER, TF = get_config("config.ini")
+gpu = 0  # Ensure this is a valid GPU ID for your system
+dlib.cuda.set_device(gpu)
 
 
 class Detector:
@@ -252,3 +256,8 @@ if __name__ == "__main__":
         detector.get_frame()
 
     detector.close()
+
+
+
+import dlib
+print(dlib.DLIB_USE_CUDA)
