@@ -29,6 +29,7 @@ import pygame
 from Gaze import Detector
 from utils import get_config
 import random
+import numpy as np
 
 
 pygame.init()                                                     #Initizalize all pygame modules
@@ -145,9 +146,74 @@ else:
 ##Then during data collection mode, target is moved around the screen and
 ##data is saved at each location:
 
-ticks = clock.tick(SETTINGS["record_frame_rate"])
-target.move((x,y), ticks)
+ticks = clock.tick(SETTINGS["record_frame_rate"])                           #Stores the number in milliseconds since the previous frame
+target.move((x,y), ticks)                                                   #sets the target to move to new position (x,y) with regards to each tick
+target.render(screen)                                                       #renders the target on the screen
+
+
+##Ok but how fast should the target be moving. If too fast, your eyes will have
+##very hard time following it when it changes direction, which reduces the validity
+##or your collected data. You need to make sure that your eyes are always looking
+##at the correct screen location as the target moves. If you move the target too slow,
+##eyes will have an easier time to follow but dataset is increased hugely and procees is slowed down
+##Speed is determined by values in config.ini
+##and correct speed will require experimentation
+##Region maps: This is another issue. where does the target rendering start
+##and where does it move the most. If we start on target, data sampling would
+##disproportionately increase towards the centre and its surroundings
+##So the sampling or the number of datasets would form a gaussian distribution originating from the centre
+##of the screen producing unequal bias when adjusting parameters.
+##To overcome this, the below code was proposed:
+
+region_map = np.zeros((width, height))  # new region map
+# When we record from a screen location, we just increment the value in that location of the map:
+region_map[x_coord, y_coord] += 1 
+
+##below is the other part of the code which recruits regions wich include
+##minimal dataset and returns them into the main loop
+
+def get_undersampled_region(region_map, map_scale):
+    min_coords = np.where(region_map == np.min(region_map))                     #defines the minimum coordinates in the region map 
+    idx = random.randint(0, len(min_coords[0]) - 1)                             #since there could be multiple regions with minimum value:
+                                                                                #idx picks one fo them at random
+    return (min_coords[0][idx] * map_scale, min_coords[1][idx] * map_scale)     #calibrate value based on map scale where [0] and [1] refer respectively to
+                                                                                #to y and x values
+# In main loop....
+center = get_undersampled_region(region_map, SETTINGS["map_scale"])             #Sets the centre as one of the minimum regions determined in the function
+target.move(center, ticks)
 target.render(screen)
+
+#Issues with screen edges:
+#region mapping helps for better sampling in terms of coordinates
+#that have low data representation. Which is that screen center
+#will still have more samples than desired. How do we increase the
+#the number of samples at the edges then? a mild and extreme solution has been
+#implemented.
+    #Extreme case: choose target locations that are at the 4 corners of the screen.
+    #Makes it higlhy likely that the target will move along the edges, or diagonally from corner
+    #to corner. This is basically moving a version of the calibration mode:
+
+new_x= random.choice([0,w])
+new_y=random.choice([0,w])
+center=(new_x,new_y)
+target.move(center, ticks)
+target.render(screen)
+
+#The milder solution would be to increase the probability of sampling
+#locations that are near the screen edges. We can use a Beta distribution for this
+#BEta distributions come in many forms, but we can choose parameters that result
+#in porbability near the boundaries of its range, and low towards the center, 
+#which is exactly what we want if we want to prioritize the screen edges
+
+from scipy.stats import beta
+
+new_x = (beta.rvs(0.4, 0.4, size=1) * w)[0]             #Selectively increase the probability of picking coordinate near x edge
+new_y = (beta.rvs(0.4, 0.4, size=1) * h)[0]             #Selectively increase the probability of picking coordinate near y edge
+center = (new_x, new_y)                                 #incorporates values as variable center
+target.move(center,ticks)
+target.render(screen)                                   #the code written in previous section written by new code
+
+
 
 while True:                                                       #continuously runs the program until stopped manually
     screen.fill(bg)                                                           #Fills entire screen with selected background colour
@@ -155,3 +221,6 @@ while True:                                                       #continuously 
     # ... do things here ...
     ticks = clock.tick(SETTINGS["record_frame_rate"])             #Limits frame rate of the loop to the value specified in SETTINGS dictionary
     pygame.display.update()
+
+
+
