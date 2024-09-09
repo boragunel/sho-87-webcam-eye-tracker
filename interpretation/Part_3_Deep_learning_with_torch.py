@@ -6,6 +6,10 @@
 #The problem we have is basically bounding box regression, 
 #but simplified to only 2 continuous output values (X-Y screen coordinate)
 #Box refers to regions of the image which are marked with a box during object classification
+#What the model does is it predicts box's in which the desired object will be
+#If the prediction is wrong, it adjust weight parameters and corrects itself
+#This is an important example of supoervised learning.
+ 
 
 import torch
 print(torch.__version__)
@@ -44,9 +48,11 @@ def mean_squared_error(n,list,y_predicted):
     print(f'Mean squared error of list 1 = {Mean_squared_error}')
     return Mean_squared_error
 
+
 #below is an example:
 
 mean_squared_error(len(list_1),list_1,np.mean(list_1))
+
 
 ## We will be using the root of Mean Squared Error
 ## to represent the real world accuracy of our data:
@@ -58,6 +64,27 @@ def Root_of_mean_squared_error(n,list,y_predicted):
     print(f'The RMSE for list 1 = {root}')
 
 Root_of_mean_squared_error(len(list_1),list_1,np.mean(list_1))
+
+#Quick revision of how to use OOP's in python
+class Car:           
+    def __init__(self,make,model,year,color):                     #Initializes a newly created object
+        self.make = make
+        self.model = model
+        self.year = year
+        self.color = color                                             #Initializes a new instance (state of'object') of the class
+    def drive(self):
+        print("This car is driving")
+    def stop(self):
+        print("this car is stopped")        #These represent methods
+
+car_1=Car('Chevy','Corvet','2021','blue')   #Once you have created the object
+car_1.drive()                               #You can use methods within the class on that object
+car_1.stop()                                #As the method will only work for input 'self'
+
+print(car_1.make)                           #in the same way you can call for
+print(car_1.model)                          #attributes of the object in this way
+print(car_1.year)
+print(car_1.color)
 
 
 
@@ -76,11 +103,11 @@ Root_of_mean_squared_error(len(list_1),list_1,np.mean(list_1))
 
 
 ###Ingesting data: We first need a way to get our data into our models. For that
-#we can use PyTorch Dataset and DataLoader. These allos us to define how data samples are retrieced from disk
+#we can use PyTorch Dataset and DataLoader. These allow us to define how data samples are retrieved from disk
 #and handles preprocessing, shuffling and batching of the data. The benefit is that we don't need to load the entire dataset
 #into memory. Data batches are loaded as needed.
 
-#For the dataset, we can define where the data is stored in the __init__ mtheod. Then the
+#For the dataset, we can define where the data is stored in the __init__ method. Then the
 ##__getitem__ method defines what should happen when our DataLoader makes a request
 ##for data. In this case it simply uses PIL to load the image and applies a few image transformations.
 
@@ -89,55 +116,38 @@ Root_of_mean_squared_error(len(list_1),list_1,np.mean(list_1))
 #(which have methods and attributes) into a single class making it easily accessible
 #Examples:
 
-class Car:
-    make = None
-    model = None
-    year = None
-    color = None           
 
-    def __init__(self,make,model,year,color):                     #Initializes a newly created object
-        self.make = make
-        self.model = model
-        self.year = year
-        self.color = color                                             #Initializes a new instance (state of'object') of the class
-    def drive(self):
-        print("This car is driving")
-    def stop(self):
-        print("this car is stopped")        #These represent methods
-
-car_1=Car('Chevy','Corvet','2021','blue')
-
-print(car_1.make)
-print(car_1.model)
-print(car_1.year)
-print(car_1.color)
-
-###
+##Down here shows the class for pulling and handling Face Datasets.
+#The class takes the initializes the dataset object
+#it then converts the data in such a way that it produces the batch
 
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 from PIL import Image
+import os
+
+cwd = os.getcwd()
 
 class FaceDataset(Dataset):
     def __init__(self, cwd, data_partial, *img_types):      
         if data_partial:
-            self.dir_data = cwd / "data_partial"         
+            self.dir_data = cwd / "data_partial"                #if data is found to be partial, sets the storage directory to 'data_partial'
         else:
-            self.dir_data = cwd / "data"                 
+            self.dir_data = cwd / "data"                        #In the opposite case, directory is set to 'data'
         df = pd.read_csv(self.dir_data / "positions.csv")       #Read CSV file containing positions. df stands for dataframe    
-        df["filename"] = df["id"].astype("str") + ".jpg"        # Create a filename column by appending '.jpg' to 'id'
-        self.img_types = list(img_types)                        
-        self.filenames = df["filename"].tolist()                
+        df["filename"] = df["id"].astype("str") + ".jpg"        #Create a filename column by appending '.jpg' to 'id'
+        self.img_types = list(img_types)                        #sets the image types to the list of acquired image types
+        self.filenames = df["filename"].tolist()                        # adminester dataframe filenames into a list 
         self.targets = torch.Tensor(list(zip(df["x"], df["y"])))        # Create a tensor of target positions
         self.head_angle = torch.Tensor(df["head_angle"].tolist())       # Create a tensor of head angles
         self.transform = transforms.Compose(
             [transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
              transforms.ToTensor()]                
-        )
+    )                                                                   #Calibrates the features of the screen to a workable form
     def __len__(self):
-        return len(self.targets)            
+        return len(self.targets)                                        #method returns length of target datasets
     def __getitem__(self, idx):             
         batch = {"targets": self.targets[idx]}      # Initialize batch with target positions
         if "head_angle" in self.img_types:          
@@ -175,9 +185,10 @@ def create_datasets(cwd, data_partial, img_types, batch_size=1, train_prop=0.8, 
     ds_train, ds_val, ds_test = random_split(                                                            #Defines the training, validation and test datasets
         dataset, (n_train, n_val, n_test), generator=torch.Generator().manual_seed(seed)                 #shuffle determines whether shuffling data is required at every step
     )                                                                                                    #pin_memory: If this is '= True', data laoder copies Tensors into CUDA pinned memory before returning them to GPU
+                                                                                                         #generator allows the random formation of those 3 groups each time (as long as see is kept constant)
     train_loader = DataLoader(ds_train, batch_size=batch_size, shuffle=True, pin_memory=True)
     val_loader = DataLoader(ds_val, batch_size=batch_size, shuffle=False, pin_memory=True)
-    test_loader = DataLoader(ds_test, batch_size=batch_size, shuffle=False, pin_memory=True)
+    test_loader = DataLoader(ds_test, batch_size=batch_size, shuffle=False, pin_memory=True)             #see that now these datasets are converted in a way that it can be passed to pytorch
     return train_loader, val_loader, test_loader
 
 
@@ -194,20 +205,20 @@ import torch.optim as optim
 class SingleModel(pl.LightningModule):
     def __init__(self, config, img_type):
         super().__init__()                                                      
-        self.save_hyperparameters()  
-        feat_size = 64  
-        self.example_input_array = torch.rand(1, 3, feat_size, feat_size)  
-        self.img_type = img_type                                                   
-        self.lr = config["lr"]  
-        self.filter_size = config["filter_size"]  
-        self.filter_growth = config["filter_growth"]                            # Growth factor for filters (due to nature of convolutional neural 
+        self.save_hyperparameters()                                             #This is the starting parameter or 'weight' value before training begins
+        featsize=64                                                             #This is the size of the feature map             
+        self.example_input_array = torch.rand(1, 3, feat_size, feat_size)       #generates random tensor values between 1 and 3 for the example feature map
+        self.img_type = img_type                                                #defines image type as an attribute of the object AI model
+        self.lr = config["lr"]                                                  #calls learning rate from config dictionary
+        self.filter_size = config["filter_size"]                                #calls back the filter size from the config dictionary
+        self.filter_growth = config["filter_growth"]                            #Growth factor for filters (due to nature of convolutional neural 
                                                                                 #networks, convolutional filters must grow in size after each layer)
         self.n_filters = config["n_filters"]                                    
         self.n_convs = config["n_convs"]                                        
         self.dense_nodes = config["dense_nodes"]                                # Number of nodes in dense layer 
                                                                                 #(in other word for dense layer is fully connected layer, 
                                                                                 # it is found nearer towards the end of the process and after all concolutional layers)
-        # First layer after input
+        # Defines first convolutional layer
         self.conv_input = nn.Conv2d(3, self.n_filters, self.filter_size)        # nn.Conv2d class takes variables (in_channels, out_channels, kernel_size, ...)
                                                                                 #In the referred code it suggests there are '3' input channels (X position, Y position and Head angle)
                                                                                 #there are same number of outputs as the number of filters (each convolutional operation by a filter
@@ -216,10 +227,10 @@ class SingleModel(pl.LightningModule):
         feat_size = feat_size - (self.filter_size - 1)                          #Represents size of feature map: output size = input size - (filter size -1)
                                                                                 #the above shows when there is 0 padding and 1 stride during Convolutional operation
 
-        # Additional conv layers
-        self.convs1 = nn.ModuleList()                                           # List to hold convolutional blocks
-        n_out = self.n_filters                                                  # again defines number outputs the same as number of filters
-        for i in range(self.n_convs):                                           
+        # Defines next set of convolutional layers via iterating loop
+        self.convs1 = nn.ModuleList()                                           #Defines 
+        n_out = self.n_filters                                                  # 
+        for i in range(self.n_convs):                                                            
             n_in = n_out                                                        
             n_out = n_in * self.filter_growth  
             self.convs1.append(self.conv_block(n_in, n_out, self.filter_size))  # Add conv block to list
@@ -234,8 +245,8 @@ class SingleModel(pl.LightningModule):
         self.fc3 = nn.Linear(self.dense_nodes // 2, 2)                          # Output layer
 
     def forward(self, x):                                                       #This basically defines the 'forward pass' of the system
-        x = self.conv_input(x)                                                  # Apply input conv layer
-        for c in self.convs1:
+        x = self.conv_input(x)                                                  # Apply first convolutional layer
+        for c in self.convs1:                                                   
             x = c(x)                                                            # Apply each conv block
         x = x.reshape(x.shape[0], -1)                                           # Flatten the tensor
         x = self.drop1(F.relu(self.fc1(x)))                                     # Apply first FC layer with ReLU and dropout
@@ -244,9 +255,9 @@ class SingleModel(pl.LightningModule):
         return x                                                                # Return output
 
     def conv_block(self, input_size, output_size, filter_size):                 #defines the convolutional block
-        block = nn.Sequential(
-            OrderedDict(
-                [
+        block = nn.Sequential(                                                  #Function takes certain vavlues      
+            OrderedDict(                                                        #input, output and convolutional filter size of the Convolutional layer
+                [                                                               #It applies the same Relu, normalization and max pooling functions
                     ("conv", nn.Conv2d(input_size, output_size, filter_size)),  
                     ("relu", nn.ReLU()),                                        
                     ("norm", nn.BatchNorm2d(output_size)),                      
@@ -257,7 +268,7 @@ class SingleModel(pl.LightningModule):
         return block                                                            # Return the conv block
     
     def configure_optimizers(self):                                             #defines optimizer function
-        optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)                   
         return optimizer
 
     def training_step(self, batch, batch_idx):                                                       
@@ -398,215 +409,6 @@ class EyesModel(pl.LightningModule):
         self.log("test_loss", loss)
         return loss
 
-
-class FullModel(pl.LightningModule):
-    def __init__(self, config):
-        """
-        I really really really wish pytorch had a way to calculate layer output sizes during init...
-        """
-        super().__init__()
-        self.save_hyperparameters()  # stores hparams in saved checkpoint files
-
-        feat_size = 64
-        self.lr = config["lr"]
-
-        # Example input for graph logging
-        graph_example = [torch.rand(1, 3, feat_size, feat_size)] * 3
-        graph_example.append(torch.rand(1, 1, feat_size, feat_size))
-        graph_example.append(torch.rand(1))
-        self.example_input_array = graph_example
-
-        # Face input
-        self.face_conv_input = nn.Conv2d(
-            3, config["n_face_filt"], config["face_filt_size"]
-        )
-        face_feat_size = feat_size - (config["face_filt_size"] - 1)
-
-        self.face_convs = nn.ModuleList()
-        n_out_face = config["n_face_filt"]
-        for _ in range(config["n_face_conv"]):
-            n_in_face = n_out_face
-            n_out_face = n_in_face * config["face_filt_grow"]
-
-            self.face_convs.append(
-                self.conv_block(n_in_face, n_out_face, config["face_filt_size"], "face")
-            )
-
-            # Calculate input feature size reductions due to conv and pooling
-            face_feat_size = (face_feat_size - (config["face_filt_size"] - 1)) // 2
-
-        face_feat_shape = (
-            n_out_face,
-            face_feat_size,
-            face_feat_size,
-        )
-        face_feat_len = math.prod(face_feat_shape)
-
-        # Eye inputs
-        self.l_conv_input = nn.Conv2d(3, config["n_eye_filt"], config["eye_filt_size"])
-        self.l_convs = nn.ModuleList()
-
-        self.r_conv_input = nn.Conv2d(3, config["n_eye_filt"], config["eye_filt_size"])
-        self.r_convs = nn.ModuleList()
-
-        eye_feat_size = feat_size - (config["eye_filt_size"] - 1)
-
-        n_out_eye = config["n_eye_filt"]
-        for _ in range(config["n_eye_conv"]):
-            n_in_eye = n_out_eye
-            n_out_eye = n_in_eye * config["eye_filt_grow"]
-
-            self.l_convs.append(
-                self.conv_block(n_in_eye, n_out_eye, config["eye_filt_size"], "l")
-            )
-            self.r_convs.append(
-                self.conv_block(n_in_eye, n_out_eye, config["eye_filt_size"], "r")
-            )
-
-            # Calculate input feature size reductions due to conv and pooling
-            eye_feat_size = (eye_feat_size - (config["eye_filt_size"] - 1)) // 2
-
-        eye_feat_shape = (
-            n_out_eye,
-            eye_feat_size,
-            eye_feat_size,
-        )
-        eye_feat_len = math.prod(eye_feat_shape)
-
-        # Head pos input
-        self.head_pos_conv_input = nn.Conv2d(
-            1, config["n_head_pos_filt"], config["head_pos_filt_size"]
-        )
-        head_pos_feat_size = feat_size - (config["head_pos_filt_size"] - 1)
-
-        self.head_pos_convs = nn.ModuleList()
-        n_out_head_pos = config["n_head_pos_filt"]
-        for _ in range(config["n_head_pos_conv"]):
-            n_in_head_pos = n_out_head_pos
-            n_out_head_pos = n_in_head_pos * config["head_pos_filt_grow"]
-
-            self.head_pos_convs.append(
-                self.conv_block(
-                    n_in_head_pos,
-                    n_out_head_pos,
-                    config["head_pos_filt_size"],
-                    "head_pos",
-                )
-            )
-
-            # Calculate input feature size reductions due to conv and pooling
-            head_pos_feat_size = (
-                head_pos_feat_size - (config["head_pos_filt_size"] - 1)
-            ) // 2
-
-        head_pos_feat_shape = (
-            n_out_head_pos,
-            head_pos_feat_size,
-            head_pos_feat_size,
-        )
-        head_pos_feat_len = math.prod(head_pos_feat_shape)
-
-        # FC layers -> output
-        self.drop1 = nn.Dropout(0.2)
-        self.fc1 = nn.Linear(
-            face_feat_len + eye_feat_len * 2 + head_pos_feat_len + 1,
-            config["dense_nodes"],
-        )
-        self.drop2 = nn.Dropout(0.2)
-        self.fc2 = nn.Linear(config["dense_nodes"], config["dense_nodes"] // 2)
-        self.fc3 = nn.Linear(config["dense_nodes"] // 2, 2)
-
-    def forward(self, face, l_eye, r_eye, head_pos, head_angle):
-        face = self.face_conv_input(face)
-        for c in self.face_convs:
-            face = c(face)
-        face = face.flatten(start_dim=1)
-
-        l_eye = self.l_conv_input(l_eye)
-        for c in self.l_convs:
-            l_eye = c(l_eye)
-        l_eye = l_eye.flatten(start_dim=1)
-
-        r_eye = self.r_conv_input(r_eye)
-        for c in self.r_convs:
-            r_eye = c(r_eye)
-        r_eye = r_eye.flatten(start_dim=1)
-
-        head_pos = self.head_pos_conv_input(head_pos)
-        for c in self.head_pos_convs:
-            head_pos = c(head_pos)
-        head_pos = head_pos.flatten(start_dim=1)
-
-        # Combine conv outputs, add head angle
-        out = torch.hstack([face, l_eye, r_eye, head_pos])
-        out = torch.hstack([out, head_angle.unsqueeze(1)])
-
-        out = self.drop1(F.relu(self.fc1(out)))
-        out = self.drop2(F.relu(self.fc2(out)))
-        out = self.fc3(out)
-        return out
-
-    def conv_block(self, input_size, output_size, filter_size, name):
-        block = nn.Sequential(
-            OrderedDict(
-                [
-                    (
-                        "{}_conv".format(name),
-                        nn.Conv2d(input_size, output_size, filter_size),
-                    ),
-                    ("{}_relu".format(name), nn.ReLU()),
-                    ("{}_norm".format(name), nn.BatchNorm2d(output_size)),
-                    ("{}_pool".format(name), nn.MaxPool2d((2, 2))),
-                ]
-            )
-        )
-        return block
-
-    def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=self.lr)
-        return optimizer
-
-    def training_step(self, batch, batch_idx):
-        face_aligned, l_eye, r_eye, head_pos, head_angle = (
-            batch["face_aligned"],
-            batch["l_eye"],
-            batch["r_eye"],
-            batch["head_pos"],
-            batch["head_angle"],
-        )
-        y_hat = self(face_aligned, l_eye, r_eye, head_pos, head_angle)
-        loss = F.mse_loss(y_hat, batch["targets"])
-        self.log("train_loss", loss)
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        face_aligned, l_eye, r_eye, head_pos, head_angle = (
-            batch["face_aligned"],
-            batch["l_eye"],
-            batch["r_eye"],
-            batch["head_pos"],
-            batch["head_angle"],
-        )
-        y_hat = self(face_aligned, l_eye, r_eye, head_pos, head_angle)
-        val_loss = F.mse_loss(y_hat, batch["targets"])
-        self.log("val_loss", val_loss)
-        return val_loss
-
-    def test_step(self, batch, batch_idx):
-        face_aligned, l_eye, r_eye, head_pos, head_angle = (
-            batch["face_aligned"],
-            batch["l_eye"],
-            batch["r_eye"],
-            batch["head_pos"],
-            batch["head_angle"],
-        )
-        y_hat = self(face_aligned, l_eye, r_eye, head_pos, head_angle)
-        loss = F.mse_loss(y_hat, batch["targets"])
-        self.log("test_loss", loss)
-        return loss
-
-    
-
 ###Now all the classes are given in the script, we show 
 ###We need a function that creates our datase5t instantiates our model
 ###creates a trainer and fits the model.
@@ -643,7 +445,7 @@ import os
 os.cwd()
 
 def main():
-    train_single(config,os.getcwd,data_partial,img_types,num_epochs=1,num_gpus=-1,save_checkpoints=False)
+    train_single(config,cwd,data_partial,img_types,num_epochs=1,num_gpus=-1,save_checkpoints=False)
 
 
 
