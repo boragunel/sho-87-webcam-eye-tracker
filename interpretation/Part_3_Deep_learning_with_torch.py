@@ -229,7 +229,7 @@ class SingleModel(pl.LightningModule):
 
         # Defines next set of convolutional layers via iterating loop
         self.convs1 = nn.ModuleList()                                           #Defines 
-        n_out = self.n_filters                                                  # 
+        n_out = self.n_filters                                                  #
         for i in range(self.n_convs):                                                            
             n_in = n_out                                                        
             n_out = n_in * self.filter_growth  
@@ -297,122 +297,7 @@ class SingleModel(pl.LightningModule):
         self.log("test_loss", loss)
         return loss
 
-##Full explanation: The unaligned face image is first passed through a 
-# convolution layer. That’s followed by a number of 
-# “convolution blocks”, which consists of convolution, 
-# ReLu activation, batch normalization, and max pooling. 
-# The output from these blocks is then resized and passed 
-# into some fully connected layers with dropout.
-#Furthermore, defined methods are also given, which means forward pass, loss function
-#gradient decent and optimization is automated for training, validation and testing.
-#The code which are shown below defining EyesModel and Full model, are the ones resembling the code above
-#Only they are classes which are required when attempting to run simulations.
 
-class EyesModel(pl.LightningModule):
-    def __init__(self, config):
-        super().__init__()
-        self.save_hyperparameters()  
-
-        feat_size = 64
-        self.example_input_array = [torch.rand(1, 3, feat_size, feat_size)] * 2
-
-        self.lr = config["lr"]
-        self.filter_size = config["filter_size"]
-        self.filter_growth = config["filter_growth"]
-        self.n_filters = config["n_filters"]
-        self.n_convs = config["n_convs"]
-        self.dense_nodes = config["dense_nodes"]
-
-        # Left eye
-        # First layer after input
-        self.l_conv_input = nn.Conv2d(3, self.n_filters, self.filter_size)
-        self.r_conv_input = nn.Conv2d(3, self.n_filters, self.filter_size)
-        feat_size = feat_size - (self.filter_size - 1)
-
-        # Additional conv layers
-        self.l_convs = nn.ModuleList()
-        self.r_convs = nn.ModuleList()
-
-        n_out = self.n_filters
-        for _ in range(self.n_convs):
-            n_in = n_out
-            n_out = n_in * self.filter_growth
-
-            self.l_convs.append(self.conv_block(n_in, n_out, self.filter_size, "l"))
-            self.r_convs.append(self.conv_block(n_in, n_out, self.filter_size, "r"))
-
-            # Calculate input feature size reductions due to conv and pooling
-            feat_size = (feat_size - (self.filter_size - 1)) // 2
-
-        # FC layers -> output
-        self.drop1 = nn.Dropout(0.2)
-        self.fc1 = nn.Linear(n_out * feat_size * feat_size * 2, self.dense_nodes)
-        self.drop2 = nn.Dropout(0.2)
-        self.fc2 = nn.Linear(self.dense_nodes, self.dense_nodes // 2)
-        self.fc3 = nn.Linear(self.dense_nodes // 2, 2)
-
-    def forward(self, l_eye, r_eye):
-        l_eye = self.l_conv_input(l_eye)
-        for c in self.l_convs:
-            l_eye = c(l_eye)
-
-        r_eye = self.r_conv_input(r_eye)
-        for c in self.r_convs:
-            r_eye = c(r_eye)
-
-        out = torch.cat((l_eye, r_eye), dim=1)
-
-        out = out.reshape(out.shape[0], -1)
-        out = self.drop1(F.relu(self.fc1(out)))
-        out = self.drop2(F.relu(self.fc2(out)))
-        out = self.fc3(out)
-        return out
-
-    def conv_block(self, input_size, output_size, filter_size, name):
-        block = nn.Sequential(
-            OrderedDict(
-                [
-                    (
-                        "{}_conv".format(name),
-                        nn.Conv2d(input_size, output_size, filter_size),
-                    ),
-                    ("{}_relu".format(name), nn.ReLU()),
-                    ("{}_norm".format(name), nn.BatchNorm2d(output_size)),
-                    ("{}_pool".format(name), nn.MaxPool2d((2, 2))),
-                ]
-            )
-        )
-        return block
-
-    def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=self.lr)
-        return optimizer
-
-    def training_step(self, batch, batch_idx):
-        l_eye, r_eye = batch["l_eye"], batch["r_eye"]
-        y_hat = self(l_eye, r_eye)
-        loss = F.mse_loss(y_hat, batch["targets"])
-        self.log("train_loss", loss)
-        return loss
-
-    def validation_step(self, batch, batch_idx):
-        l_eye, r_eye = batch["l_eye"], batch["r_eye"]
-        y_hat = self(l_eye, r_eye)
-        val_loss = F.mse_loss(y_hat, batch["targets"])
-        self.log("val_loss", val_loss)
-        return val_loss
-
-    def test_step(self, batch, batch_idx):
-        l_eye, r_eye = batch["l_eye"], batch["r_eye"]
-        y_hat = self(l_eye, r_eye)
-        loss = F.mse_loss(y_hat, batch["targets"])
-        self.log("test_loss", loss)
-        return loss
-
-###Now all the classes are given in the script, we show 
-###We need a function that creates our datase5t instantiates our model
-###creates a trainer and fits the model.
-###
 
 from ray import tune
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -421,9 +306,9 @@ from ray.tune.integration.pytorch_lightning import TuneReportCallback
 def train_single(
     config,                                                                                                 #Define configuration settings like a dictionary 
     cwd,
-    data_partial,                                                               #The fraction of the data that will be used
+    data_partial,                                                                                           #The fraction of the data that will be used
     img_types,
-    num_epochs=1,                                                                   #Training number over the entire dataset (It remains at but is custom and can be changed when attempting to train)
+    num_epochs=1,                                                                                           #Training number over the entire dataset (It remains at but is custom and can be changed when attempting to train)
     num_gpus=-1,                                                                    
     save_checkpoints=False,
 ):
@@ -445,34 +330,60 @@ import os
 os.cwd()
 
 def main():
-    train_single(config,cwd,data_partial,img_types,num_epochs=1,num_gpus=-1,save_checkpoints=False)
+    train_single(config,cwd,data_partial,img_types,num_epochs=1,num_gpus=-1,save_checkpoints=False)                             #data_partial refers to the proportions of dataset included in
+                                                                                                                                #the training, validation and test datasets. you will notice that 
+                                                                                                                                #you will notice that data_partial and img_types will be initially undefiend
+if __name__ == '__main__':                                                                                                      #That is because you need the dataset to be linked to the current working directory
+    main()
 
 
 
 ###Ray Tune: we need to wrap the training function in some Ray Tune.
-###Ray is a unified framework for scaling AI and Python applications!!!
-###Tune code allows us to do hyperparameter tuning. Ray Tune provides an extremely simple way to do (distributed)
-###hyperparameter tuning in this case by an algorithm called ASHA. 
-###
+###Ray Tune is provided in the form of a python library as including methods
+### for tuning hyperparameters and runnning experiments
+##There is a nice example in the following:
+
+from ray import train, tune
+
+from ray import train, tune
+
+
+def objective(config):  # ①
+    score = config["a"] ** 2 + config["b"]
+    return {"score": score}
+
+
+search_space = {  # ②
+    "a": tune.grid_search([0.001, 0.01, 0.1, 1.0]),                 #tune.grid_search tries every choice possible
+    "b": tune.choice([1, 2, 3]),                                    #tune.choice() picks a number on random and tries it
+}
+
+tuner = tune.Tuner(objective, param_space=search_space)             #Tests possible combinations for a and b
+
+results = tuner.fit()                                               #returns the values from parameter testing
+print(results.get_best_result(metric="score", mode="min").config)   #Prints results
+
+
+##You see that for the case above, you wanted to get the minimum values
+##which was accomplished by ray tuning.The idea is to try multiple values
+#and combinations to find the models of best fit. 
 
 import datetime
 from pathlib import Path
 
 from ray import tune
 from ray.tune.schedulers import ASHAScheduler
-from ray.tune.integration.jupyter import JupyterNotebookReporter # type: ignore
 
 #Traditionally, when you tune hyperparameters using grid search or 
 # random search, you fully train all of your model/hyperparameters 
 # combinations. This can be a waste of resources, because you can tell early on that 
 # some models just won’t work well. ASHA is a halving algorithm that prunes poor performing models, 
-# and only full trains the best models.
-
-#not much to explain for the below functions, the details are not necesssary,
-#Unless the function is called upon on 'main()'
+# and only fully train the best models.
+#the function below indeed tries out multiple models and 'tune' by only selecting
+#the ones which show the minimal loss value.
 
 def tune_asha(
-    config,
+    config,                                                                                                
     train_func,
     name,
     img_types,
@@ -482,16 +393,18 @@ def tune_asha(
     save_checkpoints=False,
     seed=1,
 ):
-    cwd = Path.cwd()
-    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=1, reduction_factor=2)
-    reporter = JupyterNotebookReporter(
-        overwrite=True,
-        parameter_columns=list(config.keys()),
-        metric_columns=["loss", "training_iteration"],
-    )
-    analysis = tune.run(
-        tune.with_parameters(
-            train_func,
+    cwd = Path.cwd()                                                                        #chooses current working directory to store the logs
+    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=1, reduction_factor=2)         #max_t: max epochs per trial
+                                                                                            #grace_period: minimum epochs that should be run per trial
+                                                                                            #reduction factor: how the trials are stoppped
+    reporter = tune.CLIReporter(                                                            #Define CLI to show progress of tuning in the terminal
+        parameter_columns=list(config.keys()),                                              #shows the tuned hyperparameters
+        metric_columns=["loss", "training_iteration"],)                                     #converted to CLI reported as JupyterNotebook reporter not essential
+                                                                                            #the metric_column show the loss value per training of the model
+    
+    analysis = tune.run(                                                                    #runs the tuning
+        tune.with_parameters(                                                               #recalls the training functions to run the model
+            train_func,                                                                     #with parameter values given at the start of the function
             cwd=cwd,
             data_partial=data_partial,
             img_types=img_types,
@@ -507,9 +420,9 @@ def tune_asha(
         scheduler=scheduler,
         progress_reporter=reporter,
         name="{}/{}".format(
-            name, datetime.datetime.now().strftime("%Y-%b-%d %H-%M-%S")
+            name, datetime.datetime.now().strftime("%Y-%b-%d %H-%M-%S") #tells the program to set a name for running the tuning session
         ),
-        local_dir=cwd / "logs"
+        local_dir=cwd / "logs"                                          #stores the logs within a folder of the cwd named logs
     )
 
 
@@ -532,10 +445,8 @@ config = {
     }
 analysis = tune_asha(config, data_partial=True, train_func=train_single, name="face/explore", img_types=["face"], num_samples=100, num_epochs=10, seed=87)
 
-
-if __name__ == "__main__":
-    main()
-
+###The above variable named as analysis is for running the hyperparameter tuning based on
+###the defined values given so far within the script.
 
 ###If we actually train and use validation for the graphs, and model (see image on the website):
 ###we actually see that ASHA prunes poorly performing models to save time.
@@ -552,31 +463,21 @@ if __name__ == "__main__":
 
 import json
 from pathlib import Path
+from utils import get_best_results
 
-def get_best_results(log_dir):
-    best_results_path = log_dir / "best_results.json"
-    
-    if best_results_path.exists():
-        with open(best_results_path, "r") as f:
-            config = json.load(f)
-    else:
-        raise FileNotFoundError(f"No best results found at {best_results_path}")
-
-    return config
-
-start_time = datetime.datetime.now().strftime("%Y-%b-%d %H-%M-%S")
-config = get_best_results(Path.cwd()/"logs"/"face"/"tune")
-pl.seed_everything(config["seed"])
-d_train, d_val, d_test = create_datasets(Path.cwd(), data_partial=True, img_types=["face"], seed=config["seed"], batch_size=config["bs"])
-model = SingleModel(config, "face")
+start_time = datetime.datetime.now().strftime("%Y-%b-%d %H-%M-%S")                                                                           #captures current date/time and format as string
+config = get_best_results(Path.cwd()/"logs"/"face"/"tune")                                                                                   #gets the best hyperparameter values
+pl.seed_everything(config["seed"])                                                                                                           #Determines the seed which will be constant
+d_train, d_val, d_test = create_datasets(Path.cwd(), data_partial=True, img_types=["face"], seed=config["seed"], batch_size=config["bs"])    #Creates the dataset and set variables for each class
+model = SingleModel(config, "face")                                                                                                          #Define first model as object
 trainer = pl.Trainer(
-    max_epochs=50,
+    max_epochs=50,                                                                                                                           #sets epoch number
     gpus=[0, 1],
-    accelerator="dp",
-    checkpoint_callback=True,
-    logger=TensorBoardLogger(save_dir=Path.cwd()/"logs", name="face/final/{}".format(start_time), log_graph=True))
-trainer.fit(model, train_dataloader=d_train, val_dataloaders=d_val)
-test_results = trainer.test(test_dataloaders=d_test)
+    accelerator="dp",                                                                                                                        #sets the GPU pathway
+    checkpoint_callback=True,                                                                                                                #ensures model checkpoints will be saved
+    logger=TensorBoardLogger(save_dir=Path.cwd()/"logs", name="face/final/{}".format(start_time), log_graph=True))                           #Log training metrics
+trainer.fit(model, train_dataloader=d_train, val_dataloaders=d_val)                                                                          #This starts the trianing process
+test_results = trainer.test(test_dataloaders=d_test)                                                                                         #gets back the results from the test
 
 ###On the test set we get an MSE loss of 2362, which is a pixel error of 48.6 pixels.
 ###the face model fed with aligned faces give an MSE loss of 2539 or 50.4 pixels.
