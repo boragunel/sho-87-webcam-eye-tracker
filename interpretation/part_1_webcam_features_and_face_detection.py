@@ -207,8 +207,8 @@ class Detector:
                     -1,
                 ) 
 
-
-
+import torch
+print(torch.__version__)
 
 
 

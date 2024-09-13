@@ -14,10 +14,11 @@
 import torch
 print(torch.__version__)
 
-###Input types are seperated to 5:
+###Input types are seperated to 6:
 #1.Unaligned face (3D image)
 #2.Aligned face (3D image)
 #3.Right Eye (3D image)
+#4.Left Eye (3D image)
 #4.Head position (2D image)
 #5.Head angles (Scalar)
 ###Output types are seperated to 2:
@@ -128,7 +129,7 @@ from torchvision import transforms
 from PIL import Image
 import os
 
-cwd = os.getcwd()
+#cwd = os.getcwd()
 
 class FaceDataset(Dataset):
     def __init__(self, cwd, data_partial, *img_types):      
@@ -276,11 +277,11 @@ class SingleModel(pl.LightningModule):
                                                                 # Perform a forward pass through the model to get predictions (y_hat)
         y_hat = self(x)
                                                                 # Compute the mean squared error loss (remember that RMSE=pixel-wise errors) between predictions and targets
-        loss = F.mse_loss(y_hat, y)
+        training_loss = F.mse_loss(y_hat, y)
                                                                 # Log the training loss for monitoring
-        self.log("train_loss", loss)
+        self.log("train_loss", training_loss)
                                                                 
-        return loss
+        return training_loss
 
     def validation_step(self, batch, batch_idx):
                                                                 # Does the exact same thing as the training step but only for validation
@@ -293,9 +294,9 @@ class SingleModel(pl.LightningModule):
     def test_step(self, batch, batch_idx):                      #Does the exact same thing for training and validation steps
         x, y = batch[self.img_type], batch["targets"]
         y_hat = self(x)
-        loss = F.mse_loss(y_hat, y)
-        self.log("test_loss", loss)
-        return loss
+        test_loss = F.mse_loss(y_hat, y)
+        self.log("test_loss", test_loss)
+        return test_loss
 
 
 
@@ -327,7 +328,8 @@ def train_single(
 
 
 import os
-os.cwd()
+
+cwd=os.getcwd()
 
 def main():
     train_single(config,cwd,data_partial,img_types,num_epochs=1,num_gpus=-1,save_checkpoints=False)                             #data_partial refers to the proportions of dataset included in
@@ -344,9 +346,6 @@ if __name__ == '__main__':                                                      
 ##There is a nice example in the following:
 
 from ray import train, tune
-
-from ray import train, tune
-
 
 def objective(config):  # ①
     score = config["a"] ** 2 + config["b"]
